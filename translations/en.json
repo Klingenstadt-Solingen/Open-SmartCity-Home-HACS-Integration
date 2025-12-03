@@ -1,0 +1,20 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "data": {
+          "SELECTED_SENSOR_STATIONS": "Selected Sensor Stations"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+        "init": {
+            "data": {
+                "SELECTED_SENSOR_STATIONS": "Selected Sensor Stations"
+            }
+        }
+    }
+  }
+}

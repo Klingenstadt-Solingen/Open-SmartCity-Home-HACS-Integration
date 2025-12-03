@@ -1,0 +1,12 @@
+DOMAIN = "open_smartcity_home"
+STORAGE_VERSION = 1
+CONFIG_STATIONS = "SELECTED_SENSOR_STATIONS"
+PLATFORMS = ["sensor"]
+MQTT_HOST = "159.69.38.127"
+MQTT_PORT = 1883
+MQTT_USERNAME = "demo-user"
+MQTT_PASSWORD = "demo-password"
+MQTT_TOPIC = "opensmartcityhome/sensor/+/state"
+API_URL = "http://159.69.38.127:8888/stations"
+API_USER = "client"
+API_PASSWORD = "client-password"
