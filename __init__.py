@@ -34,10 +34,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             entity = hass.data[DOMAIN][entry.entry_id]["entity_map"].get(sensor_id, None)
             if entity is not None:
                 payload = msg.payload.decode()
-                hass.loop.call_soon_threadsafe(
-                    _handle_mqtt_update, hass, entity, payload
-                )
-                _LOGGER.info(f"MSG: topic: {topic}, payload: {payload}")
+                if payload is not None:
+                    hass.loop.call_soon_threadsafe(
+                        _handle_mqtt_update, hass, entity, payload
+                    )
+                    _LOGGER.info(f"MSG: topic: {topic}, payload: {payload}")
 
     mqtt_client.on_message = on_message
     mqtt_client.subscribe(MQTT_TOPIC)
