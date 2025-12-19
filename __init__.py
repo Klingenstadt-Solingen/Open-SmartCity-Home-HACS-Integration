@@ -16,7 +16,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    mqtt_client = mqtt.Client()
+   
+    if hasattr(mqtt, "CallbackAPIVersion"):
+        mqtt_client = mqtt.Client(
+            callback_api_version=mqtt.CallbackAPIVersion.VERSION1
+        )
+    else:
+        # paho-mqtt 1.6.x
+        mqtt_client = mqtt.Client()
     mqtt_client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
     loop = asyncio.get_event_loop()
     mqtt_client.connect(MQTT_HOST, MQTT_PORT)

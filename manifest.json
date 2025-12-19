@@ -3,7 +3,7 @@
   "name": "Open SmartCity Home",
   "version": "1.0.0",
   "config_flow": true,
-  "requirements": ["paho-mqtt==1.6.1"],
+  "requirements": [],
   "documentation": "https://example.com",
   "dependencies": [],
   "codeowners": [],
