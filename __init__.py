@@ -25,13 +25,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # paho-mqtt 1.6.x
         mqtt_client = mqtt.Client()
     mqtt_client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+    mqtt_client.reconnect_delay_set(min_delay=1, max_delay=60)
     loop = asyncio.get_event_loop()
     mqtt_client.connect(MQTT_HOST, MQTT_PORT)
 
     def _handle_mqtt_update(hass, entity, state):
-        _LOGGER.info(f"HANDLE MQTT: {entity._attr_unique_id} {state}")
+        entity_name = entity._name
+        entity_id = entity._attr_unique_id
+        _LOGGER.info(f"[{entity_id}] {entity_name}: {state}")
         entity._state = state
         entity.async_schedule_update_ha_state()
+
+    def on_connect(client, userdata, flags, rc, properties=None):
+        if rc == 0:
+            _LOGGER.info("MQTT connected, subscribing to %s", MQTT_TOPIC)
+            client.subscribe(MQTT_TOPIC)
+        else:
+            _LOGGER.warning("MQTT connect failed rc=%s", rc)
+
+    def on_disconnect(client, userdata, rc, properties=None):
+        _LOGGER.warning("MQTT disconnected rc=%s (will auto-reconnect)", rc)
 
     def on_message(client, userdata, msg):
         topic = msg.topic
@@ -45,10 +58,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     hass.loop.call_soon_threadsafe(
                         _handle_mqtt_update, hass, entity, payload
                     )
-                    _LOGGER.info(f"MSG: topic: {topic}, payload: {payload}")
 
+    mqtt_client.on_connect = on_connect
+    mqtt_client.on_disconnect = on_disconnect
     mqtt_client.on_message = on_message
-    mqtt_client.subscribe(MQTT_TOPIC)
 
     loop.run_in_executor(None, mqtt_client.loop_forever)
 
