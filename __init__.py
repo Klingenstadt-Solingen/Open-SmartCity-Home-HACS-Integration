@@ -1,6 +1,6 @@
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from .const import DOMAIN, PLATFORMS, CONFIG_STATIONS, MQTT_HOST, MQTT_USERNAME, MQTT_PASSWORD, MQTT_PORT, MQTT_TOPIC
+from .const import DOMAIN, PLATFORMS, CONFIG_STATIONS, MQTT_HOST, MQTT_USERNAME, MQTT_PASSWORD, MQTT_PORT, MQTT_STATE_TOPIC, MQTT_STATUS_TOPIC
 from .logger import _LOGGER
 from .helper import get_selected_station_ids
 import asyncio
@@ -29,17 +29,31 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     loop = asyncio.get_event_loop()
     mqtt_client.connect(MQTT_HOST, MQTT_PORT)
 
-    def _handle_mqtt_update(hass, entity, state):
-        entity_name = entity._name
-        entity_id = entity._attr_unique_id
-        _LOGGER.info(f"[{entity_id}] {entity_name}: {state}")
-        entity._state = state
-        entity.async_schedule_update_ha_state()
+    def _handle_mqtt_state(entity, payload: str) -> None:
+        entity_id = getattr(entity, "_attr_unique_id", "unknown")
+        entity_name = getattr(entity, "_attr_name", getattr(entity, "_name", "unknown"))
+        _LOGGER.info("[state] [%s] %s: %s", entity_id, entity_name, payload)
+
+        # Your entity helper method
+        if hasattr(entity, "set_state"):
+            entity.set_state(payload)
+
+    def _handle_mqtt_status(entity, payload: str | None) -> None:
+        entity_id = getattr(entity, "_attr_unique_id", "unknown")
+        entity_name = getattr(entity, "_attr_name", getattr(entity, "_name", "unknown"))
+        _LOGGER.info("[status] [%s] %s: %s", entity_id, entity_name, payload)
+
+        # Your entity helper method
+        if hasattr(entity, "set_status"):
+            entity.set_status(payload)  # may be None
 
     def on_connect(client, userdata, flags, rc, properties=None):
         if rc == 0:
-            _LOGGER.info("MQTT connected, subscribing to %s", MQTT_TOPIC)
-            client.subscribe(MQTT_TOPIC)
+            _LOGGER.info("MQTT connected.")
+            _LOGGER.info("Subscribing to %s", MQTT_STATE_TOPIC)
+            _LOGGER.info("Subscribing to %s", MQTT_STATUS_TOPIC)
+            client.subscribe(MQTT_STATE_TOPIC)
+            client.subscribe(MQTT_STATUS_TOPIC)
         else:
             _LOGGER.warning("MQTT connect failed rc=%s", rc)
 
@@ -47,17 +61,30 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.warning("MQTT disconnected rc=%s (will auto-reconnect)", rc)
 
     def on_message(client, userdata, msg):
-        topic = msg.topic
-        topic_parts = topic.split("/")
-        if len(topic_parts) == 4:
-            sensor_id = topic_parts[2]
-            entity = hass.data[DOMAIN][entry.entry_id]["entity_map"].get(sensor_id, None)
-            if entity is not None:
-                payload = msg.payload.decode()
-                if payload is not None:
-                    hass.loop.call_soon_threadsafe(
-                        _handle_mqtt_update, hass, entity, payload
-                    )
+        topic = msg.topic or ""
+        parts = topic.split("/")
+
+        # Expect: x/sensor/<ID>/(state|status)
+        if len(parts) != 4:
+            return
+
+        sensor_id = parts[2]
+        kind = parts[3]  # "state" or "status"
+
+        entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+        entity_map = entry_data.get("entity_map", {})
+        entity = entity_map.get(sensor_id)
+
+        if entity is None:
+            return
+
+        payload_raw = msg.payload.decode(errors="ignore") if msg.payload is not None else ""
+        payload = payload_raw if payload_raw != "" else None  # treat empty as None for status
+
+        if kind == "state" and payload is not None:
+            hass.loop.call_soon_threadsafe(_handle_mqtt_state, entity, payload)
+        elif kind == "status":
+            hass.loop.call_soon_threadsafe(_handle_mqtt_status, entity, payload)
 
     mqtt_client.on_connect = on_connect
     mqtt_client.on_disconnect = on_disconnect

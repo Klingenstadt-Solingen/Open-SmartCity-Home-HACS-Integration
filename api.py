@@ -32,8 +32,9 @@ async def async_fetch_stations() -> list[Station]:
                             sensor_name = sensor_data.get("name", None)
                             sensor_unit = sensor_data.get("unit", None)
                             sensor_state = sensor_data.get("state", None)
+                            sensor_status = sensor_data.get("status", None)
                             if sensor_id and sensor_name and sensor_unit:
-                                sensors.append(Sensor(sensor_id, sensor_name, sensor_unit, sensor_state))
+                                sensors.append(Sensor(sensor_id, sensor_name, sensor_unit, sensor_state, sensor_status))
                         stations.append(Station(station_id, station_name, sensors))
             open_smartcity_home_stations = stations
             open_smartcity_home_stations_cache_time = datetime.now()

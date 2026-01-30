@@ -4,6 +4,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import device_registry as dr
+from homeassistant.const import STATE_UNKNOWN
 
 from .const import DOMAIN, CONFIG_STATIONS
 from .api import async_get_all_stations, async_get_sensors_for_station_id
@@ -70,12 +71,25 @@ async def _config_entry_updated(hass: HomeAssistant, entry: ConfigEntry) -> None
     cleanup_remove_stations(hass, entry, selected_station_ids)
     await hass.config_entries.async_reload(entry.entry_id)
 
-class SmartHomeSensorEntity(SensorEntity):
-    def __init__(self, sensor: Sensor, station: Station):
-        self._name = sensor.name
-        self._unit = sensor.unit
-        self._state = sensor.state
 
+class SmartHomeSensorEntity(SensorEntity):
+    _attr_should_poll = False
+
+    def __init__(self, sensor: Sensor, station: Station):
+        # Basic entity info
+        self._attr_name = sensor.name
+        self._attr_native_unit_of_measurement = sensor.unit
+        self._attr_native_value = sensor.state
+
+        if sensor.status is not None:
+            status = sensor.status.lower()
+            self._attr_available = status == "online"
+            self._attr_extra_state_attributes = {"status": status}
+        else:
+            self._attr_available = False
+            self._attr_extra_state_attributes = {"status": "unknown"}
+
+        # Device info (groups sensors into one device)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, station.id)},
             "name": f"Sensorstation {station.name}",
@@ -83,30 +97,27 @@ class SmartHomeSensorEntity(SensorEntity):
             "model": "Sensorstation",
         }
 
-        # Set unique_id for this entity so HA tracks it persistently
+        # Stable unique ID
         self._attr_unique_id = sensor.id
 
-    async def async_added_to_hass(self):
+    async def async_added_to_hass(self) -> None:
         self.async_write_ha_state()
 
+    # ---- Public update helpers (called from MQTT) ----
 
-    @property
-    def name(self) -> str:
-        return self._name
+    def set_state(self, value) -> None:
+        """Update sensor value from MQTT."""
+        self._attr_native_value = value
+        self.async_write_ha_state()
 
-    @property
-    def native_unit_of_measurement(self) -> str | None:
-        return self._unit
-
-    # Since you'll use MQTT (push) for updates, disable polling
-    @property
-    def should_poll(self) -> bool:
-        return False
-
-    # You may omit async_update() — instead, on MQTT message:
-    # call self.async_schedule_update_ha_state()
-
-    @property
-    def native_value(self):
-        return self._state
+    def set_status(self, status: str | None) -> None:
+        """Mark entity online/offline."""
+        if status is not None:
+            status = status.lower()
+            self._attr_available = status == "online"
+            self._attr_extra_state_attributes = {"status": status}
+        else:
+            self._attr_available = False
+            self._attr_extra_state_attributes = {"status": "unknown"}
+        self.async_write_ha_state()
 
