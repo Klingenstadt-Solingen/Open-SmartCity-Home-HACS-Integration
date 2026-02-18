@@ -80,3 +80,7 @@ You can now use the entities in dashboards, automations, and scripts.
 ## License
 
 This project is licensed under the [Open Smart City License](LICENSE.md).
+
+## Legal notices and data reliability
+
+Before using the data, please note the legal information [here](Legal-Notices-and-Data-Reliability.md).
