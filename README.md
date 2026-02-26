@@ -1,5 +1,9 @@
 # Open SmartCity Home HACS Integration
 
+<div style="display:flex;gap:1%;margin-bottom:20px">
+  <img height="100px" alt="logo" src="logo.svg">
+</div>
+
 ⚠️ **Beta Software**
 This integration is currently in **beta**. Functionality, configuration flow, and entity structure may change. Use at your own risk.
 
