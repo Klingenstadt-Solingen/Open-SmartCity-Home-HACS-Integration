@@ -52,10 +52,15 @@ Install HACS by following the official instructions:
 ## Configuration
 
 1. Open the Home Assistant UI.
-2. Go to **Settings → Devices & Services → Integrations**.
-3. Click **Add Integration**.
-4. Search for **Open SmartCity Home**.
-5. Select the integration.
+2. Go to **HACS**.
+3. Click on the 3 dots in the top right corner.
+4. Select **Custom repositories**.
+5. Add the URL **https://github.com/Klingenstadt-Solingen/Open-SmartCity-Home-HACS-Integration** to the repository and select Type **Integration**.
+6. Click the **ADD** button.
+7. Go to **Settings → Devices & Services → Integrations**.
+8. Click **Add Integration**.
+9. Search for **Open SmartCity Home**.
+10. Select the integration.
 
 You will be prompted to **select the sensor stations** you want to add.
 
