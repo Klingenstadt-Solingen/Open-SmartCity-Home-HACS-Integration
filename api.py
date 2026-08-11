@@ -8,6 +8,15 @@ open_smartcity_home_stations: list[Station] = []
 open_smartcity_home_stations_cache_time: datetime | None = None
 CACHE_TTL = timedelta(hours=1)
 
+def _as_float(value) -> float | None:
+    """Coordinates arrive as JSON numbers, but tolerate strings and nulls rather than failing setup."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
 async def async_fetch_stations() -> list[Station]:
     global open_smartcity_home_stations
     global open_smartcity_home_stations_cache_time
@@ -35,7 +44,13 @@ async def async_fetch_stations() -> list[Station]:
                             sensor_status = sensor_data.get("status", None)
                             if sensor_id and sensor_name and sensor_unit:
                                 sensors.append(Sensor(sensor_id, sensor_name, sensor_unit, sensor_state, sensor_status))
-                        stations.append(Station(station_id, station_name, sensors))
+                        # optional, older service versions do not send them
+                        latitude = _as_float(station_data.get("latitude", None))
+                        longitude = _as_float(station_data.get("longitude", None))
+                        station_status = station_data.get("status", None)
+                        stations.append(
+                            Station(station_id, station_name, sensors, latitude, longitude, station_status)
+                        )
             open_smartcity_home_stations = stations
             open_smartcity_home_stations_cache_time = datetime.now()
             return stations
