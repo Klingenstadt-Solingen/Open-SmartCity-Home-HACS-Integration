@@ -76,18 +76,15 @@ class SmartHomeSensorEntity(SensorEntity):
     _attr_should_poll = False
 
     def __init__(self, sensor: Sensor, station: Station):
+        # kept so the position can be re-applied on every status update
+        self._station = station
+
         # Basic entity info
         self._attr_name = sensor.name
         self._attr_native_unit_of_measurement = sensor.unit
         self._attr_native_value = sensor.state
 
-        if sensor.status is not None:
-            status = sensor.status.lower()
-            self._attr_available = status == "online"
-            self._attr_extra_state_attributes = {"status": status}
-        else:
-            self._attr_available = False
-            self._attr_extra_state_attributes = {"status": "unknown"}
+        self._apply_status(sensor.status)
 
         # Device info (groups sensors into one device)
         self._attr_device_info = {
@@ -112,12 +109,24 @@ class SmartHomeSensorEntity(SensorEntity):
 
     def set_status(self, status: str | None) -> None:
         """Mark entity online/offline."""
-        if status is not None:
-            status = status.lower()
-            self._attr_available = status == "online"
-            self._attr_extra_state_attributes = {"status": status}
-        else:
-            self._attr_available = False
-            self._attr_extra_state_attributes = {"status": "unknown"}
+        self._apply_status(status)
         self.async_write_ha_state()
+
+    def _apply_status(self, status: str | None) -> None:
+        """Rebuild the attributes in one place.
+
+        The coordinates must be re-added on every update, otherwise a status message replaces the
+        whole dict and the sensor drops off the map. They come from the station, the API has no
+        per sensor position.
+        """
+        status = status.lower() if status is not None else None
+        self._attr_available = status == "online"
+
+        attributes: dict = {"status": status or "unknown"}
+        # latitude and longitude are the names Home Assistant looks for to place an entity on a map
+        if self._station.has_location:
+            attributes["latitude"] = self._station.latitude
+            attributes["longitude"] = self._station.longitude
+        self._attr_extra_state_attributes = attributes
+
 
