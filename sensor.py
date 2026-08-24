@@ -4,12 +4,18 @@ from homeassistant.core import HomeAssistant
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.const import STATE_UNKNOWN
+from datetime import timedelta
 
 from .const import DOMAIN, CONFIG_STATIONS
 from .api import async_get_all_stations, async_get_sensors_for_station_id
 from .logger import _LOGGER
 from .classes import Sensor, Station
+
+# the service refreshes the station positions from Frost every 6 hours, polling faster only
+# produces API calls without new data
+POSITION_REFRESH_INTERVAL = timedelta(hours=6)
 
 def get_station_ids(hass: HomeAssistant, entry: ConfigEntry):
     config = hass.data.get(DOMAIN, {}).get(entry.entry_id)
@@ -47,6 +53,22 @@ async def async_setup_entry(
 
     hass.data[DOMAIN][entry.entry_id]["entity_map"] = entity_map
 
+    async def _refresh_positions(_now) -> None:
+        """Pick up a moved station without a restart.
+
+        Only the position is taken from the API. The status keeps coming from MQTT, which is
+        live, while the API answer can be older than the last status message.
+        """
+        stations_by_id = {station.id: station for station in await async_get_all_stations()}
+        for sensor_entity in entity_map.values():
+            station = stations_by_id.get(sensor_entity.station_id)
+            if station is not None:
+                sensor_entity.set_position(station)
+
+    entry.async_on_unload(
+        async_track_time_interval(hass, _refresh_positions, POSITION_REFRESH_INTERVAL)
+    )
+
     entry.async_on_unload(
         entry.add_update_listener(_config_entry_updated)
     )
@@ -81,6 +103,8 @@ class SmartHomeSensorEntity(SensorEntity):
 
         # Basic entity info
         self._attr_name = sensor.name
+        # only used to translate the attribute names, the entity name stays _attr_name
+        self._attr_translation_key = "station_sensor"
         self._attr_native_unit_of_measurement = sensor.unit
         self._attr_native_value = sensor.state
 
@@ -107,6 +131,21 @@ class SmartHomeSensorEntity(SensorEntity):
         self._attr_native_value = value
         self.async_write_ha_state()
 
+    @property
+    def station_id(self) -> str:
+        return self._station.id
+
+    def set_position(self, station: Station) -> None:
+        """Replace the station behind this sensor, keeping the status from MQTT."""
+        if (station.latitude, station.longitude) == (
+            self._station.latitude,
+            self._station.longitude,
+        ):
+            return
+        self._station = station
+        self._apply_status(self._status)
+        self.async_write_ha_state()
+
     def set_status(self, status: str | None) -> None:
         """Mark entity online/offline."""
         self._apply_status(status)
@@ -120,6 +159,8 @@ class SmartHomeSensorEntity(SensorEntity):
         per sensor position.
         """
         status = status.lower() if status is not None else None
+        # kept so a position refresh can rebuild the attributes without a status message
+        self._status = status
         self._attr_available = status == "online"
 
         attributes: dict = {"status": status or "unknown"}
@@ -127,6 +168,9 @@ class SmartHomeSensorEntity(SensorEntity):
         if self._station.has_location:
             attributes["latitude"] = self._station.latitude
             attributes["longitude"] = self._station.longitude
+            attributes["latitude_text"] = self._station.latitude_text
+            attributes["longitude_text"] = self._station.longitude_text
+            attributes["coordinates"] = self._station.coordinates_text
         self._attr_extra_state_attributes = attributes
 
 
