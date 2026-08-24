@@ -16,5 +16,31 @@
             }
         }
     }
+  },
+  "entity": {
+    "sensor": {
+      "station_sensor": {
+        "state_attributes": {
+          "coordinates": {
+            "name": "Coordinates"
+          },
+          "latitude": {
+            "name": "Latitude (map value)"
+          },
+          "latitude_text": {
+            "name": "Latitude"
+          },
+          "longitude": {
+            "name": "Longitude (map value)"
+          },
+          "longitude_text": {
+            "name": "Longitude"
+          },
+          "status": {
+            "name": "Status"
+          }
+        }
+      }
+    }
   }
 }
