@@ -3,7 +3,6 @@ from homeassistant.core import HomeAssistant
 from .const import DOMAIN, PLATFORMS, CONFIG_STATIONS, MQTT_HOST, MQTT_USERNAME, MQTT_PASSWORD, MQTT_PORT, MQTT_STATE_TOPIC, MQTT_STATUS_TOPIC
 from .logger import _LOGGER
 from .helper import get_selected_station_ids
-import asyncio
 import paho.mqtt.client as mqtt
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -26,8 +25,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         mqtt_client = mqtt.Client()
     mqtt_client.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
     mqtt_client.reconnect_delay_set(min_delay=1, max_delay=60)
-    loop = asyncio.get_event_loop()
-    mqtt_client.connect(MQTT_HOST, MQTT_PORT)
 
     def _handle_mqtt_state(entity, payload: str) -> None:
         entity_id = getattr(entity, "_attr_unique_id", "unknown")
@@ -58,7 +55,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.warning("MQTT connect failed rc=%s", rc)
 
     def on_disconnect(client, userdata, rc, properties=None):
-        _LOGGER.warning("MQTT disconnected rc=%s (will auto-reconnect)", rc)
+        # rc 0 is our own disconnect on unload, everything else paho retries by itself
+        if rc == 0:
+            _LOGGER.debug("MQTT disconnected on request")
+        else:
+            _LOGGER.warning("MQTT disconnected rc=%s (will auto-reconnect)", rc)
 
     def on_message(client, userdata, msg):
         topic = msg.topic or ""
@@ -90,9 +91,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     mqtt_client.on_disconnect = on_disconnect
     mqtt_client.on_message = on_message
 
-    loop.run_in_executor(None, mqtt_client.loop_forever)
+    # connect_async plus loop_start keeps retrying on its own thread, so a broker or service
+    # that is down at startup or dies later is picked up again instead of failing the setup
+    mqtt_client.connect_async(MQTT_HOST, MQTT_PORT)
+    mqtt_client.loop_start()
 
-    entry.async_on_unload(lambda: mqtt_client.disconnect())
+    def stop_mqtt() -> None:
+        mqtt_client.disconnect()
+        mqtt_client.loop_stop()
+
+    entry.async_on_unload(stop_mqtt)
 
     return True
 
