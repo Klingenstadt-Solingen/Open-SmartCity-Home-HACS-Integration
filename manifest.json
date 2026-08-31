@@ -1,10 +1,10 @@
 {
   "domain": "open_smartcity_home",
   "name": "Open SmartCity Home",
-  "version": "1.0.0",
+  "version": "0.2.1",
   "config_flow": true,
   "requirements": [],
-  "documentation": "https://example.com",
+  "documentation": "https://github.com/Klingenstadt-Solingen/Open-SmartCity-Home-HACS-Integration",
   "dependencies": [],
   "codeowners": [],
   "single_config_entry": true,
